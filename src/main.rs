@@ -14,6 +14,7 @@
  * More enemies
  * Improve enemy AI
  */
+#![windows_subsystem = "windows"] // disable windows terminal opening
 use std::collections::HashMap;
 use macroquad::prelude::*;
 use macroquad::prelude::scene::Node;
