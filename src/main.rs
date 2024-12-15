@@ -114,7 +114,7 @@ impl GameState {
             enemies_killcount: 0,
             kill_goal: vec![200],
             current_stage: 0,
-            tilemaps: vec![include_str!("../map.json"), include_str!("../map2.json"), include_str!("../map3.json")],
+            tilemaps: vec![include_str!("../map.json"), include_str!("../map2.json"), include_str!("../map3.json"), include_str!("../map4.json"), include_str!("../map5.json"), include_str!("../map6.json")],
             stage_timer: STD_TIMER_MAX,
             tilemap_old,
 
