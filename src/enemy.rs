@@ -53,7 +53,7 @@ impl Enemy {
             coords: spawnpoints.get(index).unwrap().clone(),
             velocity: vec2(0., 0.),
             speed: 0.6,
-            wh: vec2(14., 14.),
+            wh: vec2(15., 15.),
             preferred_direction,
             hp: 2,
             last_blocked: false,
@@ -74,6 +74,7 @@ impl Enemy {
     /// update (fixed) for enemies
     /// # TODO: fix enemies studder at corners
     pub fn update(&mut self, player: &Player, collision_map: &Vec<CollisionType>) {
+
         // movement, "AI"
         // direction to go. Every enemy can prefer either horizontal or vertical movement
         let mut godir: Direction = Direction::Down;
@@ -87,7 +88,7 @@ impl Enemy {
             } else if player.coords.y.round() < self.coords.y.round() {
                 godir = Direction::Up;
             } else {
-                godir = Direction::Left;
+                godir = Direction::Down;
             }
         } else {
             if player.coords.y.round() > self.coords.y.round() {
@@ -105,7 +106,7 @@ impl Enemy {
         // check if way is blocked. If it is, go the other direction.
         if godir == Direction::Left || godir == Direction::Right {
             if get_tile_collisionmap(&self.coords, &godir, collision_map, self.speed) || (self.last_blocked && self.ldir == godir) {
-                if player.coords.y.round() > self.coords.y.round() {
+                if player.coords.y.round() >= self.coords.y.round() {
                     godir = Direction::Down;
                 } else {
                     godir = Direction::Up;
@@ -113,7 +114,7 @@ impl Enemy {
             }
         } else if godir == Direction::Up || godir == Direction::Down {
             if get_tile_collisionmap(&self.coords, &godir, collision_map, self.speed) || (self.last_blocked && self.ldir == godir) {
-                if player.coords.x.round() > self.coords.x.round() {
+                if player.coords.x.round() >= self.coords.x.round() {
                     godir = Direction::Right;
                 } else {
                     godir = Direction::Left;
@@ -138,7 +139,7 @@ impl Enemy {
         self.coords += self.velocity;
         for tile in collision_map {
             if let CollisionType::Solid(x, y) = tile {
-                if Rect::new(self.coords.x + 1., self.coords.y + 1., self.wh.x, self.wh.y).overlaps(&Rect::new(*x as f32 * TILE_SIZE + 1., *y as f32 * TILE_SIZE + 1., TILE_SIZE - 1., TILE_SIZE - 1.)) {
+                if Rect::new(self.coords.x + 1., self.coords.y + 1., self.wh.x - 3., self.wh.y - 3.).overlaps(&Rect::new(*x as f32 * TILE_SIZE, *y as f32 * TILE_SIZE, TILE_SIZE, TILE_SIZE)) {
                     self.coords = old_coords;
                     self.last_blocked = true;
                 }
@@ -158,13 +159,13 @@ fn get_tile_collisionmap(coords: &Vec2, direction_from_coords: &Direction, tilem
             let offset_coords = *coords + {
                 // offset
                 if *direction_from_coords == Direction::Up {
-                    vec2(0., -speed * 1.)
+                    vec2(0., -speed)
                 } else if *direction_from_coords == Direction::Right {
-                    vec2(speed * 1., 0.)
+                    vec2(speed, 0.)
                 } else if *direction_from_coords == Direction::Left {
-                    vec2(-speed * 1., 0.)
+                    vec2(-speed, 0.)
                 } else if *direction_from_coords == Direction::Down {
-                    vec2(0., speed * 1.)
+                    vec2(0., speed)
                 } else {
                     vec2(0., 0.)
                 }

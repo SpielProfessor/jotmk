@@ -10,12 +10,17 @@
  *
  * T O D O
  * Effects
- * Room transitions
+ * Bosses
+ * More areass
  * More enemies
  * Improve enemy AI
  */
-#![windows_subsystem = "windows"] // disable windows terminal opening
+#![windows_subsystem = "windows"] // disable Windows' terminal opening
+use macroquad::ui::{root_ui, widgets};
 use std::collections::HashMap;
+use std::process::exit;
+use std::ptr::hash;
+use macroquad::hash;
 use macroquad::prelude::*;
 use macroquad::prelude::scene::Node;
 use macroquad::rand::gen_range;
@@ -39,6 +44,28 @@ pub const GAME_SCREEN_MAIN: Rect = Rect { x: 94., y: 0., w: 256., h: 256. };
 pub const SPEED: f32 = 1.;
 pub const TILE_SIZE: f32 = 16.;
 pub const STD_TIMER_MAX: i32 = 3000;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub struct DebugSettings {
+    pub debug_mode: bool,
+    pub debug_menu: bool,
+    pub fixed_speed: f32,
+    pub invincibility: bool,
+    pub transition_timer_diff: f32,
+    pub spawn_speed: f32,
+}
+impl DebugSettings {
+    pub fn new() -> Self {
+        Self {
+            debug_menu: false,
+            debug_mode: false,
+            fixed_speed: 60.0,
+            invincibility: false,
+            transition_timer_diff: 0.5,
+            spawn_speed: 69.,
+        }
+    }
+}
 
 pub struct GameState {
     pub assets: HashMap<&'static str, Texture2D>,
@@ -54,6 +81,7 @@ pub struct GameState {
     pub current_stage: usize,
     pub tilemaps: Vec<&'static str>,
     pub stage_timer: i32,
+
 }
 
 impl GameState {
@@ -86,9 +114,10 @@ impl GameState {
             enemies_killcount: 0,
             kill_goal: vec![200],
             current_stage: 0,
-            tilemaps: vec![include_str!("../map.json"), include_str!("../map2.json")],
+            tilemaps: vec![include_str!("../map.json"), include_str!("../map2.json"), include_str!("../map3.json")],
             stage_timer: STD_TIMER_MAX,
             tilemap_old,
+
         }
     }
 }
@@ -98,7 +127,7 @@ const SHOOT_COOLDOWN_MAX: i32 = 30;
 
 #[macroquad::main("Journey of the Meadow King")]
 async fn main() {
-    let mut current_state = 1;            // 0: playing, 1: main menu, 2: dead, 3: PAUSE menu, 4: DEBUG settings
+    let mut current_state = 1;            // 0: playing, 1: main menu, 2: dead, 3: PAUSE menu, 4: main debug_settings, 5: you've won
     set_default_filter_mode(FilterMode::Nearest);
     // draw loading screen
     draw_text("Initializing...", 30., 50., 50., WHITE);
@@ -106,6 +135,8 @@ async fn main() {
 
     // initialize enemy texture atlas
     initialize_enemy_textures().await;
+    // initialie debug_settings
+    let mut debug_settings = DebugSettings::new();
     // initialize game state
     let mut gs = GameState::new().await;
 
@@ -181,6 +212,23 @@ async fn main() {
                         draw_text_centred(main_menu_items.get(i).unwrap(), &font, 50. * i as f32);
                     }
                 }
+                // draw version
+                draw_text_ex(format!("Journey of the Meadow King v. {}", VERSION).as_str(), screen_width() - 11. * (30. + VERSION.len() as f32), screen_height() - 40., TextParams {
+                    font: Some(&font),
+                    font_size: 20,
+                    font_scale: 1.0,
+                    font_scale_aspect: 1.0,
+                    rotation: 0.0,
+                    color: WHITE,
+                });
+                draw_text_ex(format!("Build {}", build_id::get()).as_str(), screen_width() - 11. * (6. + build_id::get().to_string().len() as f32), screen_height() - 20., TextParams {
+                    font: Some(&font),
+                    font_size: 20,
+                    font_scale: 1.0,
+                    font_scale_aspect: 1.0,
+                    rotation: 0.0,
+                    color: WHITE,
+                });
 
                 // get keyboard inputs
                 if is_key_pressed(KeyCode::Enter) {
@@ -230,12 +278,12 @@ async fn main() {
                 // F I X E D  U P D A T E
                 //
                 fixed_update_time += get_frame_time();
-                while fixed_update_time >= 1. / 60. {
+                while fixed_update_time >= 1. / debug_settings.fixed_speed {
                     // update room timer
                     if gs.stage_timer > 0 {
                         gs.stage_timer -= 1;
                         // spawn enemy if we're still gaming
-                        if gen_range(0, 69) == 0 {
+                        if gen_range(0, debug_settings.spawn_speed as i32) == 0 {
                             gs.enemies.push(Enemy::new_random(&spawnpoints));
                         }
                     }
@@ -253,15 +301,22 @@ async fn main() {
 
 
                     // update bullets & enemies fixed
-                    for bullet in &mut gs.bullets {
-                        bullet.update();
+                    for i in 0..gs.bullets.len() {
+                        let bullet = gs.bullets.get_mut(i);
+                        if bullet.is_some() {
+                            let bullet = bullet.unwrap();
+                            bullet.update();
+                            if bullet.coords.x > GAME_SCREEN_MAIN.w || bullet.coords.y > GAME_SCREEN_MAIN.h || bullet.coords.x < 0. || bullet.coords.y < 0. {
+                                gs.bullets.remove(i);
+                            }
+                        }
                     }
 
                     for enemy in &mut gs.enemies {
                         enemy.update(&gs.player, &collision_map);
                         // check for player & enemy collision
                         if Rect::new(gs.player.coords.x, gs.player.coords.y, gs.player.wh.x, gs.player.wh.y)
-                            .overlaps(&Rect::new(enemy.coords.x, enemy.coords.y, enemy.wh.x, enemy.wh.y))
+                            .overlaps(&Rect::new(enemy.coords.x, enemy.coords.y, enemy.wh.x, enemy.wh.y)) && !debug_settings.invincibility /*only if the player isn't invincible*/
                         {
                             gs.player.health -= 1;
                             gs.stage_timer += 50;
@@ -302,11 +357,18 @@ async fn main() {
                         enemy_index += 1;
                     }
 
-                    // check for next stage transition
+
+                    //
+                    // S T A G E   T R A N S I T I O N
+                    //
                     if gs.stage_timer <= 0 && gs.player.coords.y.round() >= (GAME_SCREEN_MAIN.y + GAME_SCREEN_MAIN.h).round() - 16. {
                         // reset game state
                         gs.stage_timer = STD_TIMER_MAX;
                         gs.current_stage += 1;
+                        if gs.current_stage >= gs.tilemaps.len() {
+                            current_state = 5;
+                            break;
+                        }
                         gs.player.reset_coords();
                         gs.tilemap_old = gs.tilemap;
                         gs.tilemap = load_map(gs.tilemaps.get(gs.current_stage).unwrap(), &[("assets/tilemap.png", gs.assets.get("tiles").unwrap().clone())], &[]).unwrap();
@@ -370,7 +432,7 @@ async fn main() {
 
 
                             // increase offset
-                            transition_timer -= 0.5;
+                            transition_timer -= debug_settings.transition_timer_diff;
 
 
                             gs.canvas.draw_to_screen();
@@ -385,7 +447,7 @@ async fn main() {
                     }
 
 
-                    fixed_update_time -= 1. / 60.;
+                    fixed_update_time -= 1. / debug_settings.fixed_speed;
                 }
                 //
                 // F I X E D  E N D
@@ -492,9 +554,10 @@ async fn main() {
 
                 // debug HUD
                 if gs.debug {
-                    draw_text(format!("FPS: {}", get_fps()).as_str(), 10., 10., 20., WHITE);
+                    draw_text(format!("JOTMK v{}, FPS: {}", VERSION, get_fps()).as_str(), 10., 10., 20., WHITE);
                     draw_text(format!("Player Coords: {}/{}", gs.player.coords.x as i32, gs.player.coords.y as i32).as_str(), 10., 25., 20., WHITE);
                     draw_text(format!("-> Tile: {}/{}", (gs.player.coords.x / TILE_SIZE) as i32, (gs.player.coords.y / TILE_SIZE) as i32).as_str(), 10., 40., 20., WHITE);
+                    draw_text(format!("{} enemies, {} bullets", gs.enemies.len(), gs.bullets.len()).as_str(), 10., 60., 20., WHITE);
                 }
             } else if current_state == 2 {
 
@@ -542,13 +605,59 @@ async fn main() {
                 //
                 ////////////////////////////////
                 clear_background(BLACK);
-                draw_text_centred("Not yet implemented!", &font, 0.);
+                draw_text_centred("- Settings -", &font, -50.);
                 draw_text_centred("Press [SPACE] to go to the main menu", &font, 50.);
+                draw_text_centred("Press [F3] to toggle debug mode", &font, 100.);
                 if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
+                    gs.canvas.draw_to_screen();
+                    next_frame().await;
+                    gs = GameState::new().await;
                     current_state = 1;
+                } else if is_key_pressed(KeyCode::F3) {
+                    debug_settings.debug_mode = !debug_settings.debug_mode;
+                    if debug_settings.debug_mode == false {
+                        debug_settings = DebugSettings::new();
+                    }
+                }
+            } else if current_state == 5 {
+                draw_text_centred("You've won!", &font, 0.);
+                draw_text_centred("Press SPACE to go to main menu", &font, 50.);
+                if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
+                    gs.canvas.draw_to_screen();
+                    next_frame().await;
+                    gs = GameState::new().await;
+                    current_state = 1;
+                    break;
                 }
             }
+            // G E N E R A L
 
+            if is_key_pressed(KeyCode::F4) && debug_settings.debug_mode {
+                debug_settings.debug_menu = !debug_settings.debug_menu;
+            }
+
+
+            if debug_settings.debug_menu {
+                // disable menu if we're not in debug mode
+                if !debug_settings.debug_mode {
+                    debug_settings.debug_menu = false;
+                }
+                widgets::Window::new(hash!(), vec2(20., 20.), vec2(400., 500.)).label("Debug options").ui(&mut *root_ui(), |ui| {
+                    ui.label(None, "Debug Settings");
+                    ui.slider(hash!(), "tick speed", 1.0..1000., &mut debug_settings.fixed_speed);
+                    ui.slider(hash!(), "transition speed", 0.1..10., &mut debug_settings.transition_timer_diff);
+                    ui.slider(hash!(), "enemy spawn chance", 0.0..1000., &mut debug_settings.spawn_speed);
+                    ui.checkbox(hash!(), "invincibility", &mut debug_settings.invincibility);
+                    if ui.button(None, "Kill all enemies") {
+                        gs.enemies.clear();
+                    }
+                    ui.label(None, "INFO: enemy spawn chance: lower means more enemies");
+                    ui.label(None, "WARN: enemy spawn chance: 0.0 NOT RECOMMENDED!")
+                });
+            }
+            if debug_settings.debug_mode {
+                draw_text("debug mode", 20., screen_height() - 30., 20., WHITE);
+            }
 
             // wait for next frame
             next_frame().await;

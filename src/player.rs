@@ -93,7 +93,7 @@ pub fn key_inputs(gs: &mut GameState, shoot_cooldown: &mut i32, collision_map: &
     for tile in collision_map {
         if let CollisionType::Solid(x, y) = tile {
             // go in a bit collision-wise to make collisions feel better
-            if Rect::new(gs.player.coords.x + 2., gs.player.coords.y + 2., gs.player.wh.x - 2., gs.player.wh.y - 2.).overlaps(&Rect::new(*x as f32 * TILE_SIZE, *y as f32 * 16., 16., 16.)) {
+            if Rect::new(gs.player.coords.x, gs.player.coords.y, gs.player.wh.x, gs.player.wh.y).overlaps(&Rect::new(*x as f32 * TILE_SIZE, *y as f32 * 16., 16., 16.)) {
                 gs.player.coords = old_coords;
             }
         }
