@@ -648,6 +648,9 @@ async fn main() {
                     ui.slider(hash!(), "transition speed", 0.1..10., &mut debug_settings.transition_timer_diff);
                     ui.slider(hash!(), "enemy spawn chance", 0.0..1000., &mut debug_settings.spawn_speed);
                     ui.checkbox(hash!(), "invincibility", &mut debug_settings.invincibility);
+                    if ui.button(None, "Finish Stage") {
+                        gs.stage_timer = 0;
+                    }
                     if ui.button(None, "Kill all enemies") {
                         gs.enemies.clear();
                     }
